@@ -98,6 +98,40 @@ export class AuthService {
       },
     });
   }
+  async forgotPassword(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      throw new UnauthorizedException('Invalid email');
+    }
+    const token = await this.tokenService.createResetPasswordToken(email);
+    const link = `${process.env.FRONTEND_URL}/auth/reset-password?token=${token}`;
+    await this.emailService.sendResetPasswordEmail(email, link);
+  }
+
+  async resetPassword(token: string, password: string) {
+    const payload = await this.tokenService.getResetPasswordTokenByToken(token);
+    if (!payload) {
+      throw new UnauthorizedException('Invalid token');
+    }
+    // payload.expires
+    if (payload.expires < new Date()) {
+      throw new UnauthorizedException('Token expired');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { email: payload.email },
+    });
+    if (!user) {
+      throw new UnauthorizedException('Invalid token');
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+      },
+    });
+  }
 
   private async sendVerificationEmail(email: string) {
     const token = await this.tokenService.createVerificationToken(
@@ -106,4 +140,5 @@ export class AuthService {
     const link = `${process.env.SERVER_URL}/auth/verify-email?token=${token}`;
     await this.emailService.sendVerificationEmail(email, link);  
   }
+
 }

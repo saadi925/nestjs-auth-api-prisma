@@ -107,4 +107,32 @@ export class AuthController {
     res.clearCookie('refresh_token');
     return res.status(HttpStatus.OK).json({ message: 'Logged out successfully' });
   }
+
+  @Post('forgot-password')
+   async forgotPassword(@Body() { email }: { email: string }, @Res() res: Response) {
+  try {
+    await this.authService.forgotPassword(email);
+    return res.status(HttpStatus.OK).json({ message: 'Password reset email sent' });
+  } catch (error) {
+    return res
+      .status(HttpStatus.BAD_REQUEST)
+      .json({ message: error.message });
+  }}
+
+  @Put('reset-password')
+  async resetPassword(
+    @Body() { token, password }: { token: string; password: string },
+    @Res() res: Response,
+  ) {
+    try {
+      await this.authService.resetPassword(token, password);
+      return res.status(HttpStatus.OK).json({ message: 'Password changed successfully' });
+    } catch (error) {
+      return res
+        .status(HttpStatus.BAD_REQUEST)
+        .json({ message: error.message });
+    }
+  }
+  
+
 }

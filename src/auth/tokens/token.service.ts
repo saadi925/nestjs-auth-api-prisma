@@ -186,4 +186,41 @@ export class TokenService {
       },
     });
   }
+
+
+  // Reset password related methods
+  async createResetPasswordToken(email: string) {
+    const exists = await this.getResetPasswordToken(email);
+    if (exists) {
+      await this.prisma.resetPasswordToken.delete({
+        where: {
+          id: exists.id,
+        },
+      });
+    }
+
+    const token = await this.prisma.resetPasswordToken.create({
+      data: {
+        email,
+        token: uuidV4.v4(),
+        expires: new Date(Date.now() + 1000 * 60 * 60),
+      },
+    });
+    return token;
+  }
+  async getResetPasswordToken(email: string) {
+    return await this.prisma.resetPasswordToken.findFirst({
+      where: {
+        email,
+      },
+    });
+  }
+  async getResetPasswordTokenByToken(token: string) {
+    return await this.prisma.resetPasswordToken.findUnique({
+      where: {
+        token,
+      },
+    });
+  }
+
 }
