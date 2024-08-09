@@ -8,7 +8,7 @@ const readFileAsync = promisify(fs.readFile);
 @Injectable()
 export class TemplateService {
    async getTemplate(fileName: `${TemplateFileName}.html`, replacements: { [key: string]: string }): Promise<string> {
-    const filePath = path.join(process.cwd(), "templates", fileName);
+    const filePath = path.join(process.cwd(), "src/auth/email/templates", fileName);
     let template = await readFileAsync(filePath, "utf-8");
 
     for (const [key, value] of Object.entries(replacements)) {

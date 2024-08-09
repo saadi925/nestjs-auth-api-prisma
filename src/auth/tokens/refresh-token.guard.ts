@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 export interface RequestWithRefreshUser extends Request {
     user: {
         sub: string;
+        refreshToken : string
     };
     }
 @Injectable()
@@ -24,9 +25,16 @@ export class RefreshTokenGuard extends PassportAuthGuard('jwt-refresh') {
       const payload = this.jwtService.verify(refreshToken, {
         secret: process.env.JWT_REFRESH_SECRET,
       });
-      request.user = payload; // Attach user payload to the request object
+
+      // console.log("refreshToken :", refreshToken);
+      
+      request.user = {
+        ...payload, refreshToken
+      }; // Attach user payload to the request object
       return true;
     } catch (error) {
+      console.log(error);
+      
       throw new UnauthorizedException('Invalid refresh token');
     }
   }

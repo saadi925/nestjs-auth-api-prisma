@@ -4,6 +4,7 @@ import { PrismaService } from 'src/prisma-nest/prisma.service';
 import { CreateUserDto } from './dto/create-auth.dto';
 import { TokenService } from './tokens/token.service';
 import { EmailService } from './email/email.service';
+import { IUser } from './auth.controller';
 
 @Injectable()
 export class AuthService {
@@ -22,15 +23,17 @@ export class AuthService {
       },
     });
     if (existingUser) {
-      throw new UnauthorizedException('User already exists');
+
+      if (!existingUser.emailVerified) {
+        //  send email verification
+        await this.sendVerificationEmail(existingUser.email);
+        return {
+          message: `Email verification sent to ${existingUser.email}`,
+        };
+      }else  throw new UnauthorizedException('User already exists');
     }
-    if (!existingUser.emailVerified) {
-      //  send email verification
-      await this.sendVerificationEmail(existingUser.email);
-      return {
-        message: `Email verification sent to ${existingUser.email}`,
-      };
-    }
+    
+    
 
     await this.prisma.user.create({
       data: {
@@ -49,11 +52,10 @@ export class AuthService {
   async login(email: string, password: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || !(await bcrypt.compare(password, user.password))) {
-      throw new UnauthorizedException();
+      throw new UnauthorizedException('Invalid credentials');
     }
     if (!user.emailVerified) {
-      // send email verification
-      // TODO : send email verification email
+   await this.sendVerificationEmail(user.email);
       return {
         message: `Email verification sent to ${user.email}`,
       };
@@ -66,11 +68,12 @@ export class AuthService {
     };
   }
 
-  async refreshAccessToken(sub: string): Promise<{
+  async refreshAccessToken(refreshData): Promise<{
     accessToken: string;
     refreshToken: string;
   }> {
-    const tokens = await this.tokenService.refreshAccessToken(sub);
+    
+    const tokens = await this.tokenService.refreshAccessToken(refreshData);
     return tokens;
   }
 
@@ -104,7 +107,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email');
     }
     const token = await this.tokenService.createResetPasswordToken(email);
-    const link = `${process.env.FRONTEND_URL}/auth/reset-password?token=${token}`;
+    const link = `${process.env.FRONTEND_URL}/auth/reset-password?token=${token.token}`;
     await this.emailService.sendResetPasswordEmail(email, link);
   }
 
@@ -122,7 +125,7 @@ export class AuthService {
       where: { email: payload.email },
     });
     if (!user) {
-      throw new UnauthorizedException('Invalid token');
+      throw new UnauthorizedException('Invalid token or session expired, try again');
     }
     const hashedPassword = await bcrypt.hash(password, 10);
     await this.prisma.user.update({
@@ -131,14 +134,32 @@ export class AuthService {
         password: hashedPassword,
       },
     });
+    await this.prisma.resetPasswordToken.delete({
+      where : {
+        id : payload.id,
+        token : payload.token
+      }
+    })
   }
 
   private async sendVerificationEmail(email: string) {
     const token = await this.tokenService.createVerificationToken(
     email);
 
-    const link = `${process.env.SERVER_URL}/auth/verify-email?token=${token}`;
+    const link = `${process.env.SERVER_URL}/auth/verify-email?token=${token?.token || ""}`;
     await this.emailService.sendVerificationEmail(email, link);  
   }
+  async logout(refreshData : {
+    sub : string
+    refreshToken : string
+  }){
+  this.tokenService.revokeRefreshToken(refreshData.refreshToken)
+  this.tokenService.revokeUserTokens(refreshData.sub)
+  }
 
+
+  async getCurrentUser(access_token?: string) : Promise<IUser> {
+  if (!access_token) return null
+    return await this.tokenService.decodeUserFromAccessToken(access_token)
+  }
 }

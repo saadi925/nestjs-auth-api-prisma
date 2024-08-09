@@ -8,18 +8,24 @@ export class JwtAuthGuard extends PassportAuthGuard('jwt') {
   constructor(private jwtService: JwtService) {
     super();
   }
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
     const token = request.cookies?.['access_token'] || request.headers.authorization?.split(' ')[1];
 
     if (!token) {
-      throw new UnauthorizedException('No token provided');
+      throw new UnauthorizedException('unauthorized');
     }
     try {
-      const payload = this.jwtService.verify(token);
+       
+
+      const payload = await this.jwtService.verify(token, {
+        secret: process.env.JWT_SECRET
+      });
       request.user = payload; // Attach user payload to the request object
       return true;
     } catch (error) {
+      console.log(error);
+      
       throw new UnauthorizedException('Invalid token');
     }
   }

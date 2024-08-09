@@ -5,9 +5,8 @@ import { PrismaService } from 'src/prisma-nest/prisma.service';
 import { TokenService } from './tokens/token.service';
 import { EmailService } from './email/email.service';
 import { TemplateService } from './email/template.service';
-import { JwtModule } from '@nestjs/jwt';
+import { JwtModule, JwtService } from '@nestjs/jwt';
 import { RefreshTokenGuard } from './tokens/refresh-token.guard';
-import { JwtStrategy } from './jwt.strategy';
 
 @Module({
   imports: [
@@ -23,9 +22,9 @@ import { JwtStrategy } from './jwt.strategy';
     TokenService,
     EmailService,
     TemplateService,
-    JwtStrategy,
+    JwtService,
     RefreshTokenGuard,
   ],
-  exports: [AuthService],
+  exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

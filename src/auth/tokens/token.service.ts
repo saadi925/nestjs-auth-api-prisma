@@ -4,12 +4,14 @@ import { User, UserRole } from '@prisma/client';
 import axios from 'axios';
 import { PrismaService } from 'src/prisma-nest/prisma.service';
 import * as uuidV4 from 'uuid';
+import { IUser } from '../auth.controller';
 export interface JwtPayload {
   sub: string;
   email: string;
   role: UserRole;
   emailVerified?: Date | null;
   status?: string;
+  name : string
   picture?: string;
   iat?: number; // Issued at time, automatically handled by JWT library
   exp?: number; // Expiration time, automatically handled by JWT library
@@ -26,10 +28,12 @@ export class TokenService {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
+      name : user.name,
       role: user.role,
       picture: user.image,
       emailVerified: user.emailVerified,
       status: user.status,
+      
     };
 
     return this.jwtService.sign(payload, { secret: process.env.JWT_SECRET });
@@ -44,7 +48,7 @@ export class TokenService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // Refresh token valid for 7 days
 
-    await this.prisma.refreshToken.create({
+   const generatedToken =  await this.prisma.refreshToken.create({
       data: {
         token: refreshToken,
         userId,
@@ -53,17 +57,25 @@ export class TokenService {
     });
     
 
-    return refreshToken;
+    return generatedToken.token;
   }
 
-  async refreshAccessToken(refreshToken: string): Promise<{
+  async refreshAccessToken(refreshData :{
+    refreshToken : string,
+    sub : string
+  }): Promise<{
     accessToken: string;
     refreshToken: string;
   }> {
+    // const t = await this.prisma.refreshToken.deleteMany()
+    // console.log("token ", t);
+    
     const storedToken = await this.prisma.refreshToken.findUnique({
-      where: { token: refreshToken },
-      include: { user: true },
+      where: { token: refreshData.refreshToken, userId : refreshData.sub },
+      include: { user: true, },
     });
+    
+    
 
     if (!storedToken || new Date() > storedToken.expiresAt) {
       throw new UnauthorizedException('Invalid or expired refresh token.');
@@ -76,7 +88,7 @@ export class TokenService {
     await this.prisma.refreshToken.delete({ where: { id: storedToken.id } });
 
     const newRefreshToken = await this.generateRefreshToken(storedToken.userId);
-
+      
     return { accessToken: newAccessToken, refreshToken: newRefreshToken };
   }
 
@@ -221,6 +233,23 @@ export class TokenService {
         token,
       },
     });
+  }
+
+  // decode user from jwt
+  async decodeUserFromAccessToken(access_token : string) : Promise<IUser | undefined>{
+    const decoded = await this.jwtService.verify(access_token, {
+      secret : process.env.JWT_SECRET
+    }) as JwtPayload
+    
+    return {
+      email: decoded.email,
+      name : decoded.name,
+      status: decoded.status,
+      role: decoded.role,
+      emailVerified: decoded.emailVerified,
+      picture: decoded.picture,
+    }
+
   }
 
 }
